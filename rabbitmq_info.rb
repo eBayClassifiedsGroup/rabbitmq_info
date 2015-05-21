@@ -4,6 +4,7 @@ require 'json'
 
 RABBIT_HOSTS = %w(cony47-2:15672 cony46-2:15672)
 CONSUMER_API_CALL = '/api/consumers'
+SEPERATOR = '==>'
 =begin
 #TODO
 - use erb file to output html
@@ -11,15 +12,49 @@ CONSUMER_API_CALL = '/api/consumers'
 curl -u guest:guest http://bunny46-1:15672/api/consumers |python -m json.tool
 =end
 
+filename = "rabbitmq.txt"
 
-puts response_body(get("URL_HERE"))
+queue_consumer = Hash.new
+
+begin
+fhandle = File.open(filename, "r")
+    fhandle.readlines.each do |line|
+      queue, hosts = line.split(SEPERATOR)
+      queue.strip!
+      queue_consumer[queue] ||= []
+      puts hosts
+      hosts.split(',').each do |h|
+        queue_consumer[queue] << h.strip 
+      end
+  end
+rescue Errno::ENOENT
+end
+
+queue_consumer.each { |q,h|  puts "queue: #{q}, consumers: #{h}"}
+#exit!
+response_json = response_body(get("http://localhost:15672" + CONSUMER_API_CALL,"guest","guest"))
+
+response_json.each do |c|
+  queue = c[:queue][:name]
+  host = c[:channel_details][:peer_host]
+  (queue_consumer[queue] ||= [] ) << host
+end
+
+fout = File.open(filename, "w+")
+
+queue_consumer.keys.sort.each do |q|
+  fout.puts "#{q} #{SEPERATOR} #{queue_consumer[q].uniq.join(', ')}"
+end
+
+fout.close
 
 BEGIN {
-  def get(url)
+  def get(url,username,password)
     uri = construct_uri url
     begin
     http = Net::HTTP.new(uri.host, uri.port)
     req = Net::HTTP::Get.new(uri.request_uri)
+    req.basic_auth 'guest', 'guest' unless (username.nil? || password.nil?)
     req["Content-Type"] = "application/json"
     response = http.request(req)
     rescue  Errno::ECONNREFUSED, SocketError => e
