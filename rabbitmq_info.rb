@@ -1,8 +1,9 @@
 require 'net/http'
 require 'uri'
 require 'json'
+require 'resolv'
 
-RABBIT_HOSTS = %w(cony47-2:15672 cony46-2:15672)
+RABBIT_HOSTS = %w(cony47-2.mobile.rz cony46-2.mobile.rz bunny46-1.mobile.rz bunny47-1.mobile.rz bunny38-1.mobile.rz cony38-3.mobile.rz)
 CONSUMER_API_CALL = '/api/consumers'
 SEPERATOR = '==>'
 =begin
@@ -22,7 +23,7 @@ fhandle = File.open(filename, "r")
       queue, hosts = line.split(SEPERATOR)
       queue.strip!
       queue_consumer[queue] ||= []
-      puts hosts
+      #puts hosts
       hosts.split(',').each do |h|
         queue_consumer[queue] << h.strip 
       end
@@ -30,24 +31,35 @@ fhandle = File.open(filename, "r")
 rescue Errno::ENOENT
 end
 
-queue_consumer.each { |q,h|  puts "queue: #{q}, consumers: #{h}"}
+
+RABBIT_HOSTS.each do |rabbit|
+  
+#queue_consumer.each { |q,h|  puts "queue: #{q}, consumers: #{h}"}
 #exit!
-response_json = response_body(get("http://localhost:15672" + CONSUMER_API_CALL,"guest","guest"))
-
-response_json.each do |c|
-  queue = c[:queue][:name]
-  host = c[:channel_details][:peer_host]
-  (queue_consumer[queue] ||= [] ) << host
+  response_json = response_body(get("http://#{rabbit}:15672" + CONSUMER_API_CALL,"guest","guest"))
+  
+  response_json.each do |c|
+    queue = c[:queue][:name]
+    host = c[:channel_details][:peer_host]
+     begin
+      hostname = Resolv.getname(host)
+     rescue Resolv::ResolvError
+      hostname = host
+     end
+    (queue_consumer[queue] ||= [] ) << hostname
+  end
+  
+  fout = File.open(filename, "w+")
+  
+  queue_consumer.keys.sort.each do |q|
+    fout.puts "#{q} #{SEPERATOR} #{queue_consumer[q].uniq.join(', ')}"
+  end
+  
+  fout.close
 end
 
-fout = File.open(filename, "w+")
-
-queue_consumer.keys.sort.each do |q|
-  fout.puts "#{q} #{SEPERATOR} #{queue_consumer[q].uniq.join(', ')}"
-end
-
-fout.close
-
+queue_consumer.each { |q,h|  puts "queue: #{q}, consumers: #{h.uniq.join(',')}"}
+  
 BEGIN {
   def get(url,username,password)
     uri = construct_uri url
