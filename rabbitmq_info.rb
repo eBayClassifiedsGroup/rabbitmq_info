@@ -65,7 +65,8 @@ abort("a yaml config file is required.  See -h for help") if (config.nil?)
 queue_consumer = Hash.new
 connection_map = Hash.new
 rabbit_hosts = config_file[:rabbit_hosts]
-
+netscalers = config_file[:netscalers]
+  
 begin
 fhandle = File.open(filename, "r")
     fhandle.readlines.each do |line|
@@ -89,7 +90,7 @@ end
 if (translate)
   # Determine real IP behind a netscaler vserver
   # http://support.citrix.com/article/CTX126853
-  config_file.each do |ns, config|
+  netscalers.each do |ns, config|
     connection_map[ns] = Array.new()
     Net::SSH.start(ns.to_s, config['username'], :password => config['password']) do |ssh|
       config['vservers'].each do |vserver|
@@ -97,7 +98,7 @@ if (translate)
         lines = output.split("\n")
         lines.shift # Done
         lines.pop   # Done
-        lines.shift # header
+        lines.shift # header       
         loop do
           connection_map[ns].push(gen_connection(lines.shift(), lines.shift()))
           break if lines.empty?
@@ -119,7 +120,7 @@ rabbit_hosts.each do |rabbit|
     
     if (translate) 
       # lookup port in netscaler ouput to replace peer_host
-      config_file.each do |ns,config|
+      netscalers.each do |ns,config|
         if config['ip']  == host
           cons = connection_map[ns]
           cons.each do |con|
