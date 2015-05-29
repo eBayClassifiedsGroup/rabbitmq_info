@@ -23,6 +23,6 @@ netscalers:
     password: "password"
    
 rabbit_hosts:
- - cony47-2.mobile.rz
- - cony46-2.mobile.rz
- - cony38-3.mobile.rz
+ - host1
+ - host2
+ - host3
